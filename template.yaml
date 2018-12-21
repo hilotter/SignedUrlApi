@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+    signed_url
+
+    SAM Template for signed_url
+    
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+    Function:
+        Timeout: 5
+
+Parameters:
+    BucketName:
+        Type: String
+        Default: signed-url-test # TODO: change your bucket name
+
+Resources:
+    SignedUrlFunction:
+        Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+        Properties:
+            CodeUri: signed_url/
+            Handler: app.lambda_handler
+            Runtime: ruby2.5
+            Environment: # More info about Env Vars: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#environment-object
+                Variables:
+                    S3_BUCKET: !Ref BucketName
+            Policies:
+               S3ReadPolicy:
+                    BucketName: !Ref BucketName
+            Events:
+                SignedUrl:
+                    Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+                    Properties:
+                        Path: /signed_url
+                        Method: get
+
+Outputs:
+    SignedUrlApi:
+      Description: "API Gateway endpoint URL for Prod stage for SignedUrl function"
+      Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/signed_url/"
+
+    SignedUrlFunction:
+      Description: "SignedUrl Lambda Function ARN"
+      Value: !GetAtt SignedUrlFunction.Arn
+
+    SignedUrlFunctionIamRole:
+      Description: "Implicit IAM Role created for SignedUrl function"
+      Value: !GetAtt SignedUrlFunctionRole.Arn
