@@ -32,13 +32,95 @@ Resources:
                 SignedUrl:
                     Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
                     Properties:
-                        Path: /signed_url
-                        Method: get
+                        Path: /
+                        Method: ANY
+                        RestApiId: !Ref SignedUrlApi 
+
+    SignedUrlApi:
+        Type: AWS::Serverless::Api
+        Properties:
+            Name: SignedUrlApi
+            StageName: Prod
+            DefinitionBody:
+              swagger: "2.0"
+              basePath: '/Prod'
+              info:
+                title: !Ref AWS::StackName
+              paths:
+                /signed-url:
+                  get:
+                    parameters:
+                    - name: "expires"
+                      in: "query"
+                      required: false
+                      type: "string"
+                    - name: "key"
+                      in: "query"
+                      required: true
+                      type: "string"
+                    responses: {}
+                    x-amazon-apigateway-request-validator: "QuerystringRequestValidator"
+                    x-amazon-apigateway-integration:
+                      uri:
+                        !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SignedUrlFunction.Arn}/invocations'
+                      passthroughBehavior: "when_no_match"
+                      httpMethod: POST
+                      type: "aws_proxy"
+                    security:
+                      - api_key: []
+              securityDefinitions:
+                api_key:
+                  type: "apiKey"
+                  name: "x-api-key"
+                  in: "header"
+              x-amazon-apigateway-request-validators:
+                QuerystringRequestValidator:
+                  validateRequestParameters: true
+                  validateRequestBody: false
+
+    ConfigLambdaPermission:
+        Type: "AWS::Lambda::Permission"
+        DependsOn:
+        - SignedUrlFunction
+        Properties:
+            Action: lambda:InvokeFunction
+            FunctionName: !Ref SignedUrlFunction
+            Principal: apigateway.amazonaws.com
+
+    SignedUrlApiKey:
+        Type: AWS::ApiGateway::ApiKey
+        DependsOn: SignedUrlApi
+        Properties: 
+            Name: signed-url-api-key
+            Enabled: true
+            StageKeys: 
+                - RestApiId: 
+                      Ref: SignedUrlApi
+                  StageName: Prod
+
+    SignedUrlApiUsagePlan:
+        Type: AWS::ApiGateway::UsagePlan
+        DependsOn: SignedUrlApi
+        Properties:
+            ApiStages:
+            - ApiId: !Ref SignedUrlApi
+              Stage: !Ref SignedUrlApiProdStage
+            UsagePlanName: signed-url-api-usage-plan
+  
+    SignedUrlApiUsagePlanKey:
+      Type: AWS::ApiGateway::UsagePlanKey
+      DependsOn:
+          - SignedUrlApiKey
+          - SignedUrlApiUsagePlan
+      Properties : 
+          KeyId: !Ref SignedUrlApiKey
+          KeyType: API_KEY
+          UsagePlanId: !Ref SignedUrlApiUsagePlan
 
 Outputs:
     SignedUrlApi:
       Description: "API Gateway endpoint URL for Prod stage for SignedUrl function"
-      Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/signed_url/"
+      Value: !Sub "https://${SignedUrlApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/signed_url/"
 
     SignedUrlFunction:
       Description: "SignedUrl Lambda Function ARN"
